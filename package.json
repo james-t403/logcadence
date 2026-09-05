@@ -1,0 +1,16 @@
+{
+  "name": "logcadence",
+  "version": "0.1.0",
+  "description": "Find timestamp gaps in log files that flag stalls, crashes, or silent failures.",
+  "type": "module",
+  "bin": {
+    "logcadence": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  },
+  "license": "MIT"
+}
