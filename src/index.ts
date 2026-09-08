@@ -1,19 +1,12 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { detectFormat, extractTimestamp } from './timestamps.js';
+import { findGaps, type Gap, type TimestampedEntry } from './gaps.js';
 
 interface Options {
   file: string;
   thresholdSeconds: number;
   json: boolean;
-}
-
-interface Gap {
-  fromLine: number;
-  toLine: number;
-  fromTime: number;
-  toTime: number;
-  seconds: number;
 }
 
 const USAGE = `usage: logcadence <file> [--threshold seconds] [--json]
@@ -77,29 +70,7 @@ function readLines(path: string): string[] {
   return lines;
 }
 
-function findGaps(entries: { line: number; time: number }[], thresholdSeconds: number): Gap[] {
-  const gaps: Gap[] = [];
-  const thresholdMs = thresholdSeconds * 1000;
-
-  for (let i = 1; i < entries.length; i++) {
-    const prev = entries[i - 1];
-    const curr = entries[i];
-    const deltaMs = curr.time - prev.time;
-    if (deltaMs >= thresholdMs) {
-      gaps.push({
-        fromLine: prev.line,
-        toLine: curr.line,
-        fromTime: prev.time,
-        toTime: curr.time,
-        seconds: deltaMs / 1000,
-      });
-    }
-  }
-
-  return gaps;
-}
-
-function printHuman(options: Options, formatName: string, totalLines: number, entries: { line: number; time: number }[], gaps: Gap[]): void {
+function printHuman(options: Options, formatName: string, totalLines: number, entries: TimestampedEntry[], gaps: Gap[]): void {
   console.log(`log: ${options.file}`);
   console.log(`format detected: ${formatName}`);
   console.log(`lines scanned: ${totalLines} (${entries.length} with timestamps)`);
@@ -127,7 +98,7 @@ function printHuman(options: Options, formatName: string, totalLines: number, en
   }
 }
 
-function printJson(options: Options, formatName: string, totalLines: number, entries: { line: number; time: number }[], gaps: Gap[]): void {
+function printJson(options: Options, formatName: string, totalLines: number, entries: TimestampedEntry[], gaps: Gap[]): void {
   const first = entries[0] ?? null;
   const last = entries.length > 0 ? entries[entries.length - 1] : null;
   const longest = gaps.length > 0 ? gaps.reduce((a, b) => (b.seconds > a.seconds ? b : a)) : null;
@@ -191,7 +162,7 @@ function main(): void {
     fail('no recognizable timestamps found in the first 50 lines', options.json);
   }
 
-  const entries: { line: number; time: number }[] = [];
+  const entries: TimestampedEntry[] = [];
   lines.forEach((lineText, idx) => {
     const time = extractTimestamp(lineText, format);
     if (time !== null) entries.push({ line: idx + 1, time });

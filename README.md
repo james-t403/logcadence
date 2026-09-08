@@ -83,6 +83,13 @@ npx tsc
 node dist/index.js app.log
 ```
 
+Tests use Node's built-in test runner, so there's nothing extra to
+install:
+
+```
+npm test
+```
+
 ## Roadmap
 
 See the repository's commit history and issues for what's planned next.
