@@ -4,16 +4,18 @@ import { detectFormat, extractTimestamp } from './timestamps.js';
 import { findGaps, type Gap, type TimestampedEntry } from './gaps.js';
 
 interface Options {
-  file: string;
+  file: string | null;
   thresholdSeconds: number;
   json: boolean;
 }
 
-const USAGE = `usage: logcadence <file> [--threshold seconds] [--json]
+const USAGE = `usage: logcadence [file] [--threshold seconds] [--json]
 
 Scan a log file for gaps between consecutive timestamps. A gap that's
 much longer than the surrounding traffic often means a process hung,
 a GC pause ran long, or something crashed and restarted quietly.
+
+If no file is given, or the file is "-", input is read from stdin.
 
 Options:
   --threshold <seconds>  minimum gap size to report (default: 5)
@@ -23,6 +25,7 @@ Options:
 
 function parseArgs(argv: string[]): Options {
   let file: string | null = null;
+  let sawFileArg = false;
   let thresholdSeconds = 5;
   let json = false;
 
@@ -45,24 +48,21 @@ function parseArgs(argv: string[]): Options {
       process.stdout.write(USAGE);
       process.exit(0);
     }
-    if (arg.startsWith('-')) {
+    if (arg.startsWith('-') && arg !== '-') {
       throw new Error(`unknown option: ${arg}`);
     }
-    if (file !== null) {
+    if (sawFileArg) {
       throw new Error('only one log file may be given');
     }
-    file = arg;
-  }
-
-  if (file === null) {
-    throw new Error('missing log file argument');
+    sawFileArg = true;
+    file = arg === '-' ? null : arg;
   }
 
   return { file, thresholdSeconds, json };
 }
 
-function readLines(path: string): string[] {
-  const raw = readFileSync(path, 'utf8');
+function readLines(path: string | null): string[] {
+  const raw = path === null ? readFileSync(0, 'utf8') : readFileSync(path, 'utf8');
   const lines = raw.split(/\r?\n/);
   if (lines.length > 0 && lines[lines.length - 1] === '') {
     lines.pop();
@@ -71,7 +71,7 @@ function readLines(path: string): string[] {
 }
 
 function printHuman(options: Options, formatName: string, totalLines: number, entries: TimestampedEntry[], gaps: Gap[]): void {
-  console.log(`log: ${options.file}`);
+  console.log(`log: ${options.file ?? '(stdin)'}`);
   console.log(`format detected: ${formatName}`);
   console.log(`lines scanned: ${totalLines} (${entries.length} with timestamps)`);
 
@@ -104,7 +104,7 @@ function printJson(options: Options, formatName: string, totalLines: number, ent
   const longest = gaps.length > 0 ? gaps.reduce((a, b) => (b.seconds > a.seconds ? b : a)) : null;
 
   const result = {
-    file: options.file,
+    file: options.file ?? '(stdin)',
     format: formatName,
     thresholdSeconds: options.thresholdSeconds,
     totalLines,
@@ -150,11 +150,15 @@ function main(): void {
     process.exit(1);
   }
 
+  if (options.file === null && process.stdin.isTTY) {
+    fail('no file given and stdin is not piped (use --help for usage)', options.json);
+  }
+
   let lines: string[];
   try {
     lines = readLines(options.file);
   } catch (err) {
-    fail(`could not read ${options.file}: ${(err as Error).message}`, options.json);
+    fail(`could not read ${options.file ?? 'stdin'}: ${(err as Error).message}`, options.json);
   }
 
   const format = detectFormat(lines);

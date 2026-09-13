@@ -15,7 +15,16 @@ threshold you choose.
 ## Usage
 
 ```
-logcadence <file> [--threshold seconds] [--json]
+logcadence [file] [--threshold seconds] [--json]
+```
+
+If no file is given, or the file is `-`, input is read from stdin, so
+it composes with `tail -f`, `zcat`, `kubectl logs`, or anything else
+that writes lines to a pipe:
+
+```
+$ kubectl logs my-pod | logcadence --threshold 10
+$ zcat app.log.gz | logcadence -
 ```
 
 Human-readable output:
