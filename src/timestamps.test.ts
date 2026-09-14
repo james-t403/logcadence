@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FORMATS, detectFormat, extractTimestamp } from './timestamps.js';
+import { FORMATS, detectFormat, extractTimestamp, findFormatById } from './timestamps.js';
 
 const iso = FORMATS.find((f) => f.name === 'ISO 8601')!;
 const apache = FORMATS.find((f) => f.name === 'Apache/nginx combined')!;
@@ -56,4 +56,14 @@ test('detectFormat only samples the first 50 lines', () => {
 
 test('detectFormat returns null when nothing matches', () => {
   assert.equal(detectFormat(['just text', 'more text']), null);
+});
+
+test('findFormatById looks up a format by its stable id', () => {
+  assert.equal(findFormatById('iso8601'), iso);
+  assert.equal(findFormatById('apache'), apache);
+  assert.equal(findFormatById('syslog'), syslog);
+});
+
+test('findFormatById returns null for an unknown id', () => {
+  assert.equal(findFormatById('made-up'), null);
 });

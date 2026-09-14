@@ -1,6 +1,6 @@
 // Timestamp extraction for the log formats we actually run into day to day.
 // Each format is tried in turn against a sample of lines; whichever matches
-// the most wins, so a file doesn't need a --format flag for the common cases.
+// the most wins, so most files work without needing --format at all.
 
 const MONTHS: Record<string, number> = {
   Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
@@ -8,6 +8,7 @@ const MONTHS: Record<string, number> = {
 };
 
 export interface TimestampFormat {
+  id: string;
   name: string;
   regex: RegExp;
   parse: (match: RegExpMatchArray) => number | null;
@@ -57,21 +58,28 @@ function parseSyslog(match: RegExpMatchArray): number | null {
 
 export const FORMATS: TimestampFormat[] = [
   {
+    id: 'iso8601',
     name: 'ISO 8601',
     regex: /(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)/,
     parse: parseIso,
   },
   {
+    id: 'apache',
     name: 'Apache/nginx combined',
     regex: /\[(\d{2})\/([A-Za-z]{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2}) ([+-]\d{4})\]/,
     parse: parseApache,
   },
   {
+    id: 'syslog',
     name: 'syslog (RFC 3164)',
     regex: /^([A-Za-z]{3})\s+(\d{1,2})\s(\d{2}):(\d{2}):(\d{2})/,
     parse: parseSyslog,
   },
 ];
+
+export function findFormatById(id: string): TimestampFormat | null {
+  return FORMATS.find((format) => format.id === id) ?? null;
+}
 
 export function detectFormat(lines: string[]): TimestampFormat | null {
   const sample = lines.slice(0, 50);

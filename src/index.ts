@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
-import { detectFormat, extractTimestamp } from './timestamps.js';
+import { detectFormat, extractTimestamp, findFormatById, FORMATS } from './timestamps.js';
 import { findGaps, type Gap, type TimestampedEntry } from './gaps.js';
 
 interface Options {
   file: string | null;
   thresholdSeconds: number;
   json: boolean;
+  format: string | null;
 }
 
-const USAGE = `usage: logcadence [file] [--threshold seconds] [--json]
+const FORMAT_IDS = FORMATS.map((format) => format.id).join(', ');
+
+const USAGE = `usage: logcadence [file] [--threshold seconds] [--format id] [--json]
 
 Scan a log file for gaps between consecutive timestamps. A gap that's
 much longer than the surrounding traffic often means a process hung,
@@ -19,15 +22,17 @@ If no file is given, or the file is "-", input is read from stdin.
 
 Options:
   --threshold <seconds>  minimum gap size to report (default: 5)
+  --format <id>          skip auto-detection, use this format: ${FORMAT_IDS}
   --json                 print machine-readable JSON instead of a table
   -h, --help             show this message
 `;
 
-function parseArgs(argv: string[]): Options {
+export function parseArgs(argv: string[]): Options {
   let file: string | null = null;
   let sawFileArg = false;
   let thresholdSeconds = 5;
   let json = false;
+  let format: string | null = null;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -44,6 +49,15 @@ function parseArgs(argv: string[]): Options {
       }
       continue;
     }
+    if (arg === '--format') {
+      const value = argv[++i];
+      if (value === undefined) throw new Error('--format requires a value');
+      if (!findFormatById(value)) {
+        throw new Error(`unknown format "${value}" (valid: ${FORMAT_IDS})`);
+      }
+      format = value;
+      continue;
+    }
     if (arg === '-h' || arg === '--help') {
       process.stdout.write(USAGE);
       process.exit(0);
@@ -58,7 +72,7 @@ function parseArgs(argv: string[]): Options {
     file = arg === '-' ? null : arg;
   }
 
-  return { file, thresholdSeconds, json };
+  return { file, thresholdSeconds, json, format };
 }
 
 function readLines(path: string | null): string[] {
@@ -72,7 +86,7 @@ function readLines(path: string | null): string[] {
 
 function printHuman(options: Options, formatName: string, totalLines: number, entries: TimestampedEntry[], gaps: Gap[]): void {
   console.log(`log: ${options.file ?? '(stdin)'}`);
-  console.log(`format detected: ${formatName}`);
+  console.log(options.format ? `format: ${formatName} (forced with --format)` : `format detected: ${formatName}`);
   console.log(`lines scanned: ${totalLines} (${entries.length} with timestamps)`);
 
   if (entries.length >= 2) {
@@ -161,7 +175,7 @@ function main(): void {
     fail(`could not read ${options.file ?? 'stdin'}: ${(err as Error).message}`, options.json);
   }
 
-  const format = detectFormat(lines);
+  const format = options.format ? findFormatById(options.format) : detectFormat(lines);
   if (!format) {
     fail('no recognizable timestamps found in the first 50 lines', options.json);
   }
@@ -181,4 +195,8 @@ function main(): void {
   }
 }
 
-main();
+// Guard so importing this module (e.g. from tests, to reach parseArgs) doesn't
+// also run the CLI.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}

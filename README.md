@@ -15,7 +15,7 @@ threshold you choose.
 ## Usage
 
 ```
-logcadence [file] [--threshold seconds] [--json]
+logcadence [file] [--threshold seconds] [--format id] [--json]
 ```
 
 If no file is given, or the file is `-`, input is read from stdin, so
@@ -82,6 +82,16 @@ flag to set by hand:
 
 Lines that don't match the detected format are counted but skipped
 when computing gaps.
+
+Auto-detection picks whichever format matches the most sample lines,
+which can guess wrong on a file with a handful of stray lines in a
+different format (a mixed-source log, or one with a banner at the
+top). Pass `--format` with one of `iso8601`, `apache`, or `syslog` to
+skip detection and force a specific one:
+
+```
+$ logcadence app.log --format syslog --threshold 10
+```
 
 ## Building
 
