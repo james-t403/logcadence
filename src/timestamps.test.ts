@@ -33,6 +33,24 @@ test('extractTimestamp parses syslog RFC 3164 timestamps against the current yea
   assert.equal(ms, Date.UTC(year, 0, 1, 0, 0, 0));
 });
 
+test('extractTimestamp carries the previous line\'s year forward for syslog', () => {
+  const prevMs = Date.UTC(2025, 5, 1, 0, 0, 0); // Jun 1 2025
+  const ms = extractTimestamp('Jun  2 00:00:00 host sshd[123]: accepted', syslog, prevMs);
+  assert.equal(ms, Date.UTC(2025, 5, 2, 0, 0, 0));
+});
+
+test('extractTimestamp rolls the year over on a Dec -> Jan syslog boundary', () => {
+  const prevMs = Date.UTC(2025, 11, 31, 23, 59, 0); // Dec 31 2025
+  const ms = extractTimestamp('Jan  1 00:00:30 host sshd[123]: accepted', syslog, prevMs);
+  assert.equal(ms, Date.UTC(2026, 0, 1, 0, 0, 30));
+});
+
+test('extractTimestamp does not roll the year over for ordinary out-of-order jitter', () => {
+  const prevMs = Date.UTC(2025, 5, 2, 0, 0, 10); // Jun 2 2025, 00:00:10
+  const ms = extractTimestamp('Jun  2 00:00:05 host sshd[123]: accepted', syslog, prevMs);
+  assert.equal(ms, Date.UTC(2025, 5, 2, 0, 0, 5));
+});
+
 test('extractTimestamp returns null when the line does not match', () => {
   assert.equal(extractTimestamp('no timestamp here', iso), null);
   assert.equal(extractTimestamp('no timestamp here', apache), null);

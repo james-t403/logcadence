@@ -11,7 +11,10 @@ export interface TimestampFormat {
   id: string;
   name: string;
   regex: RegExp;
-  parse: (match: RegExpMatchArray) => number | null;
+  // prevMs is the timestamp of the previous line that matched this same
+  // format, if any. Only syslog uses it (to carry the year forward and
+  // detect a New Year's rollover); other formats ignore it.
+  parse: (match: RegExpMatchArray, prevMs: number | null) => number | null;
 }
 
 function parseIso(match: RegExpMatchArray): number | null {
@@ -39,7 +42,13 @@ function parseApache(match: RegExpMatchArray): number | null {
   return utcMs - offsetMs;
 }
 
-function parseSyslog(match: RegExpMatchArray): number | null {
+// If a syslog line's timestamp lands more than this far before the
+// previous line's, it isn't just an out-of-order log entry -- the year
+// must have rolled over (e.g. "Dec 31" followed by "Jan 1"), so we bump
+// the year forward by one and recompute.
+const SYSLOG_ROLLOVER_THRESHOLD_MS = 180 * 24 * 60 * 60_000;
+
+function parseSyslog(match: RegExpMatchArray, prevMs: number | null): number | null {
   const [, monStr, dayStr, hourStr, minStr, secStr] = match;
   const month = MONTHS[monStr];
   if (month === undefined) return null;
@@ -49,11 +58,20 @@ function parseSyslog(match: RegExpMatchArray): number | null {
   const minute = Number(minStr);
   const second = Number(secStr);
 
-  // RFC 3164 syslog lines carry no year or zone. We assume the current
-  // year and UTC, which is wrong for logs spanning a New Year's boundary
-  // or written in local time. Good enough for a first pass; see README.
-  const year = new Date().getFullYear();
-  return Date.UTC(year, month, day, hour, minute, second);
+  // RFC 3164 syslog lines carry no year or zone, and we treat them as UTC,
+  // which is wrong for logs written in local time; see README. For the
+  // year, start from wherever the previous line landed (or the current
+  // calendar year for the first line) and only advance it when the new
+  // timestamp would otherwise fall well before the previous one -- that's
+  // the signature of a real New Year's rollover, not just jitter.
+  const baseYear = prevMs === null ? new Date().getFullYear() : new Date(prevMs).getUTCFullYear();
+  const candidateMs = Date.UTC(baseYear, month, day, hour, minute, second);
+
+  if (prevMs !== null && candidateMs < prevMs - SYSLOG_ROLLOVER_THRESHOLD_MS) {
+    return Date.UTC(baseYear + 1, month, day, hour, minute, second);
+  }
+
+  return candidateMs;
 }
 
 export const FORMATS: TimestampFormat[] = [
@@ -95,8 +113,8 @@ export function detectFormat(lines: string[]): TimestampFormat | null {
   return best ? best.format : null;
 }
 
-export function extractTimestamp(line: string, format: TimestampFormat): number | null {
+export function extractTimestamp(line: string, format: TimestampFormat, prevMs: number | null = null): number | null {
   const match = line.match(format.regex);
   if (!match) return null;
-  return format.parse(match);
+  return format.parse(match, prevMs);
 }

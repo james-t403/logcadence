@@ -76,9 +76,13 @@ flag to set by hand:
   separator, milliseconds, or a numeric offset)
 - Apache/nginx combined log format (`[10/Oct/2000:13:55:36 -0700]`)
 - syslog, RFC 3164 (`Jan  1 00:00:00`) — this format doesn't carry a
-  year, so the current calendar year is assumed. Files that cross a
-  New Year's boundary, or that were written in a non-UTC local time,
-  will get somewhat wrong gap sizes near the boundary.
+  year, so the first line is assumed to be in the current calendar
+  year, and later lines carry that year forward. If the timestamps
+  cross a New Year's boundary (a line lands more than ~180 days before
+  the one before it), the year is advanced by one from that point on,
+  so a file spanning Dec 31 into Jan 1 still gets correct gap sizes.
+  Lines written in non-UTC local time are still treated as UTC, which
+  will skew gap sizes near the boundary.
 
 Lines that don't match the detected format are counted but skipped
 when computing gaps.

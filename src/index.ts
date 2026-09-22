@@ -181,9 +181,13 @@ function main(): void {
   }
 
   const entries: TimestampedEntry[] = [];
+  let prevMs: number | null = null;
   lines.forEach((lineText, idx) => {
-    const time = extractTimestamp(lineText, format);
-    if (time !== null) entries.push({ line: idx + 1, time });
+    const time = extractTimestamp(lineText, format, prevMs);
+    if (time !== null) {
+      entries.push({ line: idx + 1, time });
+      prevMs = time;
+    }
   });
 
   const gaps = findGaps(entries, options.thresholdSeconds);
