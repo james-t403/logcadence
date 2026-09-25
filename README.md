@@ -15,7 +15,7 @@ threshold you choose.
 ## Usage
 
 ```
-logcadence [file] [--threshold seconds] [--format id] [--json]
+logcadence [file] [--threshold seconds] [--format id] [--json] [--quiet]
 ```
 
 If no file is given, or the file is `-`, input is read from stdin, so
@@ -64,7 +64,15 @@ $ logcadence app.log --threshold 10 --json
 
 The `--json` mode is meant to be piped into `jq` or fed to another
 tool — it's the same data as the table, just structured, and it's the
-one you'd wire into a CI check or a monitoring script.
+one you'd wire into a monitoring script.
+
+For a CI step that should just pass or fail, use `--quiet`: it prints
+nothing and exits 1 if any gap at or above the threshold was found, 0
+otherwise.
+
+```
+$ logcadence app.log --threshold 30 --quiet || echo "gap check failed"
+```
 
 ## Supported timestamp formats
 

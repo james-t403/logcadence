@@ -26,3 +26,19 @@ test('parseArgs combines --format with other options', () => {
   assert.equal(options.thresholdSeconds, 10);
   assert.equal(options.json, true);
 });
+
+test('parseArgs defaults to quiet off', () => {
+  const options = parseArgs(['app.log']);
+  assert.equal(options.quiet, false);
+});
+
+test('parseArgs accepts --quiet', () => {
+  const options = parseArgs(['app.log', '--quiet']);
+  assert.equal(options.quiet, true);
+});
+
+test('parseArgs combines --quiet with other options', () => {
+  const options = parseArgs(['app.log', '--quiet', '--threshold', '30']);
+  assert.equal(options.quiet, true);
+  assert.equal(options.thresholdSeconds, 30);
+});

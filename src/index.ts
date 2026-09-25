@@ -8,11 +8,12 @@ interface Options {
   thresholdSeconds: number;
   json: boolean;
   format: string | null;
+  quiet: boolean;
 }
 
 const FORMAT_IDS = FORMATS.map((format) => format.id).join(', ');
 
-const USAGE = `usage: logcadence [file] [--threshold seconds] [--format id] [--json]
+const USAGE = `usage: logcadence [file] [--threshold seconds] [--format id] [--json] [--quiet]
 
 Scan a log file for gaps between consecutive timestamps. A gap that's
 much longer than the surrounding traffic often means a process hung,
@@ -24,6 +25,7 @@ Options:
   --threshold <seconds>  minimum gap size to report (default: 5)
   --format <id>          skip auto-detection, use this format: ${FORMAT_IDS}
   --json                 print machine-readable JSON instead of a table
+  --quiet                print nothing; exit 1 if any gap was found, else 0
   -h, --help             show this message
 `;
 
@@ -33,11 +35,16 @@ export function parseArgs(argv: string[]): Options {
   let thresholdSeconds = 5;
   let json = false;
   let format: string | null = null;
+  let quiet = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--json') {
       json = true;
+      continue;
+    }
+    if (arg === '--quiet') {
+      quiet = true;
       continue;
     }
     if (arg === '--threshold') {
@@ -72,7 +79,7 @@ export function parseArgs(argv: string[]): Options {
     file = arg === '-' ? null : arg;
   }
 
-  return { file, thresholdSeconds, json, format };
+  return { file, thresholdSeconds, json, format, quiet };
 }
 
 function readLines(path: string | null): string[] {
@@ -191,6 +198,10 @@ function main(): void {
   });
 
   const gaps = findGaps(entries, options.thresholdSeconds);
+
+  if (options.quiet) {
+    process.exit(gaps.length > 0 ? 1 : 0);
+  }
 
   if (options.json) {
     printJson(options, format.name, lines.length, entries, gaps);
